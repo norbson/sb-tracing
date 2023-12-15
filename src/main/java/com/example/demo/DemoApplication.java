@@ -1,5 +1,6 @@
 package com.example.demo;
 
+import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.BeanFactory;
@@ -38,23 +39,21 @@ public class DemoApplication {
 	}
 
 	@GetMapping(value = "/test")
-	public Mono<DTO> test() {
+	public Flux<DTO> test() {
 		log.info("call external service");
 		return beanFactory.getBean(WebClient.class)
 				.get()
 				.uri("/external-service")
-				.exchangeToMono(clientResponse -> DataBufferUtils.join(
-						clientResponse.body(BodyExtractors.toDataBuffers())
-								.doOnNext(b -> log.info("streaming response"))))
-				.doOnNext(a -> log.info("response collected"))
-				.map(Object::toString)
-				.map(DTO::new);
+				.exchangeToFlux(clientResponse ->
+						clientResponse.body(BodyExtractors.toFlux(DTO.class))
+								.doOnNext(b -> log.info("response element received")))
+				.doOnNext(a -> log.info("processing response element"));
 	}
 
 	@GetMapping(value = "/external-service")
 	public Flux<DTO> externalService() {
 		log.info("external service called");
-		return Flux.just(new DTO("test")).repeat(5);
+		return Flux.just(new DTO("test")).repeat(2);
 	}
 
 	public record DTO(String a) {
